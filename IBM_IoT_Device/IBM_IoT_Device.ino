@@ -7,7 +7,7 @@
 #define DEVICE_ID          "deviceID"
 #define EC                 "EC"
 int DS18S20_Pin = 2; //DS18S20 Signal pin on digital 2
-float voltageEC, ecValue, temperature;
+float voltageEC, ecValue, temperature, salValue;
 DFRobot_EC ec;
 int POWERKEY = 5;
 SoftwareSerial mySerial(3,4);
@@ -47,9 +47,13 @@ float readEC() {
         Serial.print(", EC:");
         Serial.print(ecValue, 2);
         Serial.println("ms/cm");
+		salValue = (ecValue * 640) / 1000
 		
 		st_msg += String(ecValue);
+	    st_msg += ",\"Salitny\":";
+		st_msg += String(salValue);
 	    st_msg += "}";
+		
 		st_msg.toCharArray(msg, st_msg.length() + 1);
 		Serial.print("PUB MEG: "); Serial.println(msg);
 		MQTT_Pub(Publish, msg, strlen(msg));
