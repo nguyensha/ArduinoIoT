@@ -6,11 +6,13 @@
 #define EC_PIN A1
 #define DEVICE_ID          "deviceID"
 #define EC                 "EC"
+#define LAT                "19.771703"
+#define LON                "105.892790"
 int DS18S20_Pin = 2; //DS18S20 Signal pin on digital 2
 float voltageEC, ecValue, temperature, salValue;
 DFRobot_EC ec;
 int POWERKEY = 5;
-SoftwareSerial mySerial(3,4);
+SoftwareSerial mySerial(3,4); // RX, TX
 OneWire ds(DS18S20_Pin);  // on digital pin 2
 
 char* Publish = "led/publish"; //Publish Topic
@@ -36,29 +38,37 @@ void loop() {
 
 float readEC() {
     static unsigned long timepoint = millis();
-    if(millis()-timepoint > 1000U){  //time interval: 1s
-	    char msg[200];
-		String st_msg = MSG_FORMAT;
-		
+    if(millis()-timepoint > 60000){  //time interval: 1min
+        char msg[200];
+        String st_msg = MSG_FORMAT;
+        
         timepoint = millis();
         temperature = readTemperature();
-        voltageEC = analogRead(EC_PIN)/1024.0*5000;
-        ecValue    = ec.readEC(voltageEC,temperature);
-        Serial.print(", EC:");
-        Serial.print(ecValue, 2);
-        Serial.println("ms/cm");
-		salValue = (ecValue * 640) / 1000
-		
-		st_msg += String(ecValue);
-	    st_msg += ",\"Salitny\":";
-		st_msg += String(salValue);
-	    st_msg += "}";
-		
-		st_msg.toCharArray(msg, st_msg.length() + 1);
-		Serial.print("PUB MEG: "); Serial.println(msg);
-		MQTT_Pub(Publish, msg, strlen(msg));
+		if (temperature < 50) {
+            voltageEC = analogRead(EC_PIN)/1024.0*5000;
+            ecValue    = ec.readEC(voltageEC,temperature) / 10 - 0.75;
+            Serial.print(", EC:");
+            Serial.print(ecValue, 2);
+            Serial.println("ms/cm");
+            salValue = (ecValue * 640) / 1000;
+            
+            st_msg += String(ecValue);
+            st_msg += ",\"Salitiny\":";
+            st_msg += String(salValue);
+            st_msg += ",\"Temp\":";
+            st_msg += String(temperature);
+			st_msg += ",\"Latitude\":";
+            st_msg += String(LAT);
+			st_msg += ",\"Longitude\":";
+            st_msg += String(LON);
+            st_msg += "}";
+            
+            st_msg.toCharArray(msg, st_msg.length() + 1);
+            Serial.print("PUB MEG: "); Serial.println(msg);
+            MQTT_Pub(PublishTopic, msg);
+	    }
     }
-	ec.calibration(voltageEC,temperature);
+    ec.calibration(voltageEC,temperature);
 }
 
 float readTemperature() {
@@ -108,51 +118,51 @@ float readTemperature() {
 
 void MQTT_Init(char* server, char* clientID, char* userName, char* pass) {
     char aux_str[40];
-	
+    
     Serial.println("Connecting To Server........");
-	delay(2000);
+    delay(2000);
     sendATcommand("ATE0", "OK", 2000);
-	delay(2000);
+    delay(2000);
     sendATcommand("AT+CMQTTSTART", "OK", 2000);
-	delay(2000);
-	Serial.print("Client ID: "); Serial.println(clientID);
-	Serial.print("Server ID: "); Serial.println(server);
-	
-	memset(aux_str, '\0', 40);
-	sprintf(aux_str, "AT+CMQTTACCQ=0,\"%s\"", clientID);
-	Serial.println(aux_str);
-	sendATcommand(aux_str, "OK", 2000);
+    delay(2000);
+    Serial.print("Client ID: "); Serial.println(clientID);
+    Serial.print("Server ID: "); Serial.println(server);
+    
+    memset(aux_str, '\0', 40);
+    sprintf(aux_str, "AT+CMQTTACCQ=0,\"%s\"", clientID);
+    Serial.println(aux_str);
+    sendATcommand(aux_str, "OK", 2000);
     memset(aux_str, '\0', 40);
     delay(2000);
-	sprintf(aux_str, "AT+CMQTTCONNECT=0,\"%s\",90,1", server);
-	Serial.println(aux_str);
-    //sprintf(aux_str, "AT+CMQTTCONNECT=0,\"%s\",90,1,\"%s\",\"%s\"", server, userName, pass);
+    //sprintf(aux_str, "AT+CMQTTCONNECT=0,\"%s\",90,1", server);
+    sprintf(aux_str, "AT+CMQTTCONNECT=0,\"%s\",90,0,\"%s\",\"%s\"", server, userName, pass);
+    Serial.println(aux_str);
     sendATcommand(aux_str, "OK", 2000);
-	delay(2000);
+    delay(2000);
 }
 
-void MQTT_Pub(char* topic, char* mesg, uint8_t leng) {
-	char aux_str[40];
-	
+void MQTT_Pub(char* topic, char* mesg) {
+    char aux_str[100];
+    
     Serial.print("Publishing Message: "); mySerial.println(mesg);
-	sprintf(aux_str, "AT+CMQTTTOPIC=0,%d", strlen( topic ));
-	Serial.println(aux_str);
+    sprintf(aux_str, "AT+CMQTTTOPIC=0,%d", strlen( topic ));
+    Serial.println(aux_str);
     sendATcommand(aux_str, ">", 2000);
-	memset(aux_str, '\0', 40);
+    memset(aux_str, '\0', 40);
     delay(2000);
     mySerial.println(topic);
-	delay(2000);
-	
-	sprintf(aux_str, "AT+CMQTTPAYLOAD=0,%d", strlen( mesg ));
-	Serial.println(aux_str);
+    delay(2000);
+    
+    sprintf(aux_str, "AT+CMQTTPAYLOAD=0,%d", strlen( mesg ));
+    Serial.println(aux_str);
     sendATcommand(aux_str, ">", 2000);
-
-	delay(2000);
+    
+    delay(2000);
     mySerial.println(mesg); //Payload message
     delay(500);
-	delay(2000);
+    delay(2000);
     sendATcommand("AT+CMQTTPUB=0,1,60", "OK", 2000);
-	delay(2000);
+    delay(2000);
 }
 
 void PowerOn(int PowerKey) {
@@ -189,7 +199,7 @@ uint8_t sendATcommand(const char* ATcommand, const char* expected_answer, unsign
 
     while( mySerial.available() > 0) mySerial.read();
     mySerial.println(ATcommand);
-	Serial.print("Send command: "); Serial.println(ATcommand);
+    Serial.print("Send command: "); Serial.println(ATcommand);
     x = 0;
     previous = millis();
     Serial.print("Respones: ");
@@ -197,7 +207,7 @@ uint8_t sendATcommand(const char* ATcommand, const char* expected_answer, unsign
     do{
         if(mySerial.available() != 0){    
             response[x] = mySerial.read();
-			Serial.print((char)response[x]);
+            Serial.print((char)response[x]);
             x++;
             // check if the desired answer  is in the response of the module
             if (strstr(response, expected_answer) != NULL)    
@@ -205,7 +215,7 @@ uint8_t sendATcommand(const char* ATcommand, const char* expected_answer, unsign
         }
         // Waits for the asnwer with time out
     }while((answer == 0) && ((millis() - previous) < timeout));
-	Serial.println("");
-	Serial.print("Asnwer: "); Serial.println(answer);
+    Serial.println("");
+    Serial.print("Asnwer: "); Serial.println(answer);
     return answer;
 }
