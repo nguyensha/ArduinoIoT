@@ -15,14 +15,12 @@ int POWERKEY = 5;
 SoftwareSerial mySerial(3,4); // RX, TX
 OneWire ds(DS18S20_Pin);  // on digital pin 2
 
-char* Publish = "led/publish"; //Publish Topic
-char* Subscribe = "led/subscribe"; //Subscribe Topic
-char* MQTTServer = "tcp://test.mosquitto.org:1883";
-char* MQTTClientID = "device1";
-char* MQTTUser = "";
-char* MQTTPass = "";
-char* test_pub = "A";
-char* MSG_FORMAT = "{\"deviceID\":\"device1\",\"EC\":";
+char* PublishTopic = "iot-2/evt/salinity/fmt/json"; //Publish Topic
+char* MQTTServer = "tcp://tl3hjn.messaging.internetofthings.ibmcloud.com:1883";
+char* MQTTClientID = "d:tl3hjn:salinity:dev2";
+char* MQTTUser = "use-token-auth";
+char* MQTTPass = "123456789";
+char* MSG_FORMAT = "{\"deviceID\":\"dev2\",\"EC\":";
 
 void setup() {
     Serial.begin(9600);
