@@ -10,6 +10,7 @@
 #define LON                "105.892790"
 int DS18S20_Pin = 2; //DS18S20 Signal pin on digital 2
 float voltageEC, ecValue, temperature, salValue;
+float lat, lon;
 DFRobot_EC ec;
 int POWERKEY = 5;
 SoftwareSerial mySerial(3,4); // RX, TX
@@ -50,15 +51,16 @@ float readEC() {
             Serial.println("ms/cm");
             salValue = (ecValue * 640) / 1000;
             
+            GPS_Positioning();
             st_msg += String(ecValue);
             st_msg += ",\"Salitiny\":";
             st_msg += String(salValue);
             st_msg += ",\"Temp\":";
             st_msg += String(temperature);
 			st_msg += ",\"Latitude\":";
-            st_msg += String(LAT);
+            st_msg += String(lat);
 			st_msg += ",\"Longitude\":";
-            st_msg += String(LON);
+            st_msg += String(lon);
             st_msg += "}";
             
             st_msg.toCharArray(msg, st_msg.length() + 1);
@@ -112,6 +114,76 @@ float readTemperature() {
     
 	Serial.print("Temperature: "); Serial.print(TemperatureSum);
     return TemperatureSum;
+}
+
+void GPS_Positioning(){
+    char response[100];
+    float lat_t, log_t;
+    char LatDD[3], LatMM[10], LogDD[4], LogMM[10];
+    uint8_t x = 0;
+    
+    memset(response, '\0', 300); // Initialize the string
+    memset(LatDD, '\0', 3); // Initialize the string
+    memset(LatMM, '\0', 10); // Initialize the string
+    memset(LogDD, '\0', 4); // Initialize the string
+    memset(LogMM, '\0', 10); // Initialize the string
+    
+    Serial.println("Get GPS Positioning");
+    
+    while( mySerial.available() > 0) mySerial.read();
+    mySerial.println("AT+CGPSINFO");
+    delay(2000);
+    
+    while( mySerial.available() > 0){
+        response[x] = mySerial.read();
+        Serial.print((char)response[x]);
+        x++;
+    }
+    
+    if (x < 25 ) return;
+    
+    strncpy(LatDD, response + 13, 2);
+    LatDD[2] = '\0';
+
+    strncpy(LatMM, response + 15, 9);
+    LatMM[9] = '\0';
+    
+    lat_t = atoi(LatDD) + (atof(LatMM) / 60);
+    
+    if (response[12+13] == 'N') {
+        Serial.print("\r\n> Latitude: ");
+        Serial.print(lat_t);
+        Serial.print(" N");
+    } else if (response[12+13] == 'S') {
+        Serial.print("\r\n> Latitude: ");
+        Serial.print(lat_t);
+        Serial.print(" S");
+    } else {
+        return;
+    }
+
+    strncpy(LogDD, response + 14+13, 3);
+    LogDD[3] = '\0';
+
+    strncpy(LogMM, response + 17+13, 9);
+    LogMM[9] = '\0';
+
+    log_t = atoi(LogDD) + (atof(LogMM) / 60);
+    
+    if (response[27+13] == 'E') {
+        Serial.print("\r\n> Longitude: ");
+        Serial.print(log_t);
+        Serial.print(" E");
+    } else if (response[27+13] == 'W') {
+        Serial.print("\r\n> Longitude: ");
+        Serial.print(log_t);
+        Serial.print(" W");
+    } else {
+        return;
+    }
+    
+    lat = lat_t;
+    lon = log_t;
 }
 
 void MQTT_Init(char* server, char* clientID, char* userName, char* pass) {
